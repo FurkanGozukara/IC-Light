@@ -4,6 +4,7 @@ import gradio as gr
 import numpy as np
 import torch
 import safetensors.torch as sf
+import random
 import db_examples
 import sys
 import platform 
@@ -16,6 +17,7 @@ from briarmbg import BriaRMBG
 from enum import Enum
 from torch.hub import download_url_to_file
 
+MAX_SEED = np.iinfo(np.int32).max
 def open_folder():
     open_folder_path = os.path.abspath("outputs")
     if platform.system() == "Windows":
@@ -345,8 +347,10 @@ def process(input_fg, prompt, image_width, image_height, num_samples, seed, step
 
 
 @torch.inference_mode()
-def process_relight(input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source):
+def process_relight(input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source, randomize_seed):
     input_fg, matting = run_rmbg(input_fg)
+    if randomize_seed:
+        seed = random.randint(0, MAX_SEED)
     results = process(input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source)
     
     # Generate outputs folder if it doesn't exist
@@ -364,7 +368,7 @@ def process_relight(input_fg, prompt, image_width, image_height, num_samples, se
         filepath = os.path.join('outputs', filename)
         Image.fromarray(result).save(filepath)
     
-    return input_fg, results
+    return input_fg, results, seed  # Return the seed along with input_fg and results
 
 
 quick_prompts = [
@@ -404,7 +408,7 @@ class BGSource(Enum):
 block = gr.Blocks().queue()
 with block:
     with gr.Row():
-        gr.Markdown(""" IC-Light (Relighting with Foreground Condition) - V1 - This is improved version of publicly released Gradio demo
+        gr.Markdown(""" IC-Light (Relighting with Foreground Condition) - V3 - This is improved version of publicly released Gradio demo
         ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/103894969  """)
     with gr.Row():
         with gr.Column():
@@ -421,8 +425,9 @@ with block:
 
             with gr.Group():
                 with gr.Row():
-                    num_samples = gr.Slider(label="Images", minimum=1, maximum=12, value=1, step=1)
+                    num_samples = gr.Slider(label="Batch Size", minimum=1, maximum=12, value=1, step=1)
                     seed = gr.Number(label="Seed", value=12345, precision=0)
+                    randomize_seed = gr.Checkbox(label="Randomize Seed", value=True)  # Add this line
 
                 with gr.Row():
                     image_width = gr.Slider(label="Image Width", minimum=256, maximum=1024, value=512, step=64)
@@ -442,8 +447,8 @@ with block:
             btn_open_outputs.click(fn=open_folder)
     with gr.Row():
         dummy_image_for_outputs = gr.Image(visible=False, label='Result')
-    ips = [input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source]
-    relight_button.click(fn=process_relight, inputs=ips, outputs=[output_bg, result_gallery])
+    ips = [input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source, randomize_seed]
+    relight_button.click(fn=process_relight, inputs=ips, outputs=[output_bg, result_gallery, seed])
     example_quick_prompts.click(lambda x, y: ', '.join(y.split(', ')[:2] + [x[0]]), inputs=[example_quick_prompts, prompt], outputs=prompt, show_progress=False, queue=False)
     example_quick_subjects.click(lambda x: x[0], inputs=example_quick_subjects, outputs=prompt, show_progress=False, queue=False)
 
