@@ -5,7 +5,8 @@ import numpy as np
 import torch
 import safetensors.torch as sf
 import db_examples
-
+import sys
+import platform 
 from PIL import Image
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, EulerAncestralDiscreteScheduler, DPMSolverMultistepScheduler
@@ -14,6 +15,13 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from briarmbg import BriaRMBG
 from enum import Enum
 from torch.hub import download_url_to_file
+
+def open_folder():
+    open_folder_path = os.path.abspath("outputs")
+    if platform.system() == "Windows":
+        os.startfile(open_folder_path)
+    elif platform.system() == "Linux":
+        os.system(f'xdg-open "{open_folder_path}"')
 
 
 # 'stablediffusionapi/realistic-vision-v51'
@@ -340,6 +348,22 @@ def process(input_fg, prompt, image_width, image_height, num_samples, seed, step
 def process_relight(input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source):
     input_fg, matting = run_rmbg(input_fg)
     results = process(input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source)
+    
+    # Generate outputs folder if it doesn't exist
+    os.makedirs('outputs', exist_ok=True)
+    
+    # Find the latest available number for saving images
+    existing_files = os.listdir('outputs')
+    existing_numbers = [int(file.split('.')[0].split('_')[1]) for file in existing_files if file.endswith('.png')]
+    latest_number = max(existing_numbers) if existing_numbers else 0
+    
+    # Save each generated image with the next available number
+    for i, result in enumerate(results):
+        image_number = latest_number + i + 1
+        filename = f'img_{image_number:05d}.png'
+        filepath = os.path.join('outputs', filename)
+        Image.fromarray(result).save(filepath)
+    
     return input_fg, results
 
 
@@ -380,7 +404,8 @@ class BGSource(Enum):
 block = gr.Blocks().queue()
 with block:
     with gr.Row():
-        gr.Markdown("## IC-Light (Relighting with Foreground Condition)")
+        gr.Markdown(""" IC-Light (Relighting with Foreground Condition) - V1 - This is improved version of publicly released Gradio demo
+        ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/103894969  """)
     with gr.Row():
         with gr.Column():
             with gr.Row():
@@ -413,6 +438,8 @@ with block:
                 n_prompt = gr.Textbox(label="Negative Prompt", value='lowres, bad anatomy, bad hands, cropped, worst quality')
         with gr.Column():
             result_gallery = gr.Gallery(height=832, object_fit='contain', label='Outputs')
+            btn_open_outputs = gr.Button("Open Outputs Folder")
+            btn_open_outputs.click(fn=open_folder)
     with gr.Row():
         dummy_image_for_outputs = gr.Image(visible=False, label='Result')
     ips = [input_fg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, lowres_denoise, bg_source]
