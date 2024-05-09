@@ -5,7 +5,9 @@ import numpy as np
 import torch
 import safetensors.torch as sf
 import db_examples
-
+import random
+import sys
+import platform 
 from PIL import Image
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, EulerAncestralDiscreteScheduler, DPMSolverMultistepScheduler
@@ -14,6 +16,14 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from briarmbg import BriaRMBG
 from enum import Enum
 from torch.hub import download_url_to_file
+
+MAX_SEED = np.iinfo(np.int32).max
+def open_folder():
+    open_folder_path = os.path.abspath("outputs")
+    if platform.system() == "Windows":
+        os.startfile(open_folder_path)
+    elif platform.system() == "Linux":
+        os.system(f'xdg-open "{open_folder_path}"')
 
 
 # 'stablediffusionapi/realistic-vision-v51'
@@ -324,11 +334,29 @@ def process(input_fg, input_bg, prompt, image_width, image_height, num_samples, 
 
 
 @torch.inference_mode()
-def process_relight(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source):
+def process_relight(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source, randomize_seed):
+
     input_fg, matting = run_rmbg(input_fg)
+    if randomize_seed:
+        seed = random.randint(0, MAX_SEED)
     results, extra_images = process(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source)
     results = [(x * 255.0).clip(0, 255).astype(np.uint8) for x in results]
-    return results + extra_images
+        # Generate outputs folder if it doesn't exist
+    os.makedirs('outputs', exist_ok=True)
+    
+    # Find the latest available number for saving images
+    existing_files = os.listdir('outputs')
+    existing_numbers = [int(file.split('.')[0].split('_')[1]) for file in existing_files if file.endswith('.png')]
+    latest_number = max(existing_numbers) if existing_numbers else 0
+    
+    # Save each generated image with the next available number
+    for i, result in enumerate(results):
+        image_number = latest_number + i + 1
+        filename = f'img_{image_number:05d}.png'
+        filepath = os.path.join('outputs', filename)
+        Image.fromarray(result).save(filepath)
+    
+    return results + extra_images, seed
 
 
 @torch.inference_mode()
@@ -406,7 +434,8 @@ class BGSource(Enum):
 block = gr.Blocks().queue()
 with block:
     with gr.Row():
-        gr.Markdown("## IC-Light (Relighting with Foreground and Background Condition)")
+        gr.Markdown(""" IC-Light (Relighting with Foreground and Background Condition) - V4 - This is improved version of publicly released Gradio demo
+        ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/103894969  """)
     with gr.Row():
         with gr.Column():
             with gr.Row():
@@ -419,16 +448,22 @@ with block:
 
             example_prompts = gr.Dataset(samples=quick_prompts, label='Prompt Quick List', components=[prompt])
             bg_gallery = gr.Gallery(height=450, object_fit='contain', label='Background Quick List', value=db_examples.bg_samples, columns=5, allow_preview=False)
+
+        with gr.Column():
+            result_gallery = gr.Gallery(height=768, object_fit='contain', label='Outputs')
             relight_button = gr.Button(value="Relight")
 
             with gr.Group():
                 with gr.Row():
                     num_samples = gr.Slider(label="Images", minimum=1, maximum=12, value=1, step=1)
                     seed = gr.Number(label="Seed", value=12345, precision=0)
+                    randomize_seed = gr.Checkbox(label="Randomize Seed", value=True)  # Add this line
                 with gr.Row():
                     image_width = gr.Slider(label="Image Width", minimum=256, maximum=1024, value=512, step=64)
-                    image_height = gr.Slider(label="Image Height", minimum=256, maximum=1024, value=640, step=64)
-
+                    image_height = gr.Slider(label="Image Height", minimum=256, maximum=1024, value=768, step=64)
+                with gr.Row():
+                    btn_open_outputs = gr.Button("Open Outputs Folder")
+                    btn_open_outputs.click(fn=open_folder)
             with gr.Accordion("Advanced options", open=False):
                 steps = gr.Slider(label="Steps", minimum=1, maximum=100, value=20, step=1)
                 cfg = gr.Slider(label="CFG Scale", minimum=1.0, maximum=32.0, value=7.0, step=0.01)
@@ -438,21 +473,9 @@ with block:
                 n_prompt = gr.Textbox(label="Negative Prompt",
                                       value='lowres, bad anatomy, bad hands, cropped, worst quality')
                 normal_button = gr.Button(value="Compute Normal (4x Slower)")
-        with gr.Column():
-            result_gallery = gr.Gallery(height=832, object_fit='contain', label='Outputs')
-    with gr.Row():
-        dummy_image_for_outputs = gr.Image(visible=False, label='Result')
-        gr.Examples(
-            fn=lambda *args: [args[-1]],
-            examples=db_examples.background_conditioned_examples,
-            inputs=[
-                input_fg, input_bg, prompt, bg_source, image_width, image_height, seed, dummy_image_for_outputs
-            ],
-            outputs=[result_gallery],
-            run_on_click=True, examples_per_page=1024
-        )
-    ips = [input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source]
-    relight_button.click(fn=process_relight, inputs=ips, outputs=[result_gallery])
+
+    ips = [input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source, randomize_seed]
+    relight_button.click(fn=process_relight, inputs=ips, outputs=[result_gallery,seed])
     normal_button.click(fn=process_normal, inputs=ips, outputs=[result_gallery])
     example_prompts.click(lambda x: x[0], inputs=example_prompts, outputs=prompt, show_progress=False, queue=False)
 
