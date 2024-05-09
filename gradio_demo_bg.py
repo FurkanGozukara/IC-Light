@@ -360,8 +360,12 @@ def process_relight(input_fg, input_bg, prompt, image_width, image_height, num_s
 
 
 @torch.inference_mode()
-def process_normal(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source):
+def process_normal(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source, randomize_seed):
     input_fg, matting = run_rmbg(input_fg, sigma=16)
+
+
+    if randomize_seed:
+        seed = random.randint(0, MAX_SEED)
 
     print('left ...')
     left = process(input_fg, input_bg, prompt, image_width, image_height, 1, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, BGSource.LEFT.value)[0][0]
@@ -405,7 +409,20 @@ def process_normal(input_fg, input_bg, prompt, image_width, image_height, num_sa
 
     results = [normal, left, right, bottom, top] + inner_results
     results = [(x * 127.5 + 127.5).clip(0, 255).astype(np.uint8) for x in results]
-    return results
+    os.makedirs('outputs', exist_ok=True)
+    
+    # Find the latest available number for saving images
+    existing_files = os.listdir('outputs')
+    existing_numbers = [int(file.split('.')[0].split('_')[1]) for file in existing_files if file.endswith('.png')]
+    latest_number = max(existing_numbers) if existing_numbers else 0
+    
+    # Save each generated image with the next available number
+    for i, result in enumerate(results):
+        image_number = latest_number + i + 1
+        filename = f'img_{image_number:05d}.png'
+        filepath = os.path.join('outputs', filename)
+        Image.fromarray(result).save(filepath)
+    return results, seed
 
 
 quick_prompts = [
@@ -476,7 +493,7 @@ with block:
 
     ips = [input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source, randomize_seed]
     relight_button.click(fn=process_relight, inputs=ips, outputs=[result_gallery,seed])
-    normal_button.click(fn=process_normal, inputs=ips, outputs=[result_gallery])
+    normal_button.click(fn=process_normal, inputs=ips, outputs=[result_gallery,seed])
     example_prompts.click(lambda x: x[0], inputs=example_prompts, outputs=prompt, show_progress=False, queue=False)
 
     def bg_gallery_selected(gal, evt: gr.SelectData):
