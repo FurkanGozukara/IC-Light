@@ -14,6 +14,7 @@ from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, EulerA
 from diffusers.models.attention_processor import AttnProcessor2_0
 from transformers import CLIPTextModel, CLIPTokenizer
 from briarmbg import BriaRMBG
+import argparse
 from enum import Enum
 from torch.hub import download_url_to_file
 
@@ -34,6 +35,11 @@ text_encoder = CLIPTextModel.from_pretrained(sd15_name, subfolder="text_encoder"
 vae = AutoencoderKL.from_pretrained(sd15_name, subfolder="vae")
 unet = UNet2DConditionModel.from_pretrained(sd15_name, subfolder="unet")
 rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4")
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--share", type=str, default=False, help="Set to True to share the app publicly.")
+args = parser.parse_args()
+
 
 # Change UNet
 
@@ -628,12 +634,12 @@ class BGSource(Enum):
 block = gr.Blocks().queue()
 with block:
     with gr.Row():
-        gr.Markdown(""" IC-Light (Relighting with Foreground Condition) - V4 - This is improved version of publicly released Gradio demo
+        gr.Markdown(""" IC-Light (Relighting with Foreground Condition) - V5 - This is improved version of publicly released Gradio demo
         ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/103894969  """)
     with gr.Row():
         with gr.Column():
             with gr.Row():
-                input_fg = gr.Image(source='upload', type="numpy", label="Image", height=480)
+                input_fg = gr.Image(type="numpy", label="Image", height=480)
                 output_bg = gr.Image(type="numpy", label="Preprocessed Foreground", height=480)
             prompt = gr.Textbox(label="Prompt")
             bg_source = gr.Radio(choices=[e.value for e in BGSource],
@@ -673,4 +679,4 @@ with block:
     example_quick_subjects.click(lambda x: x[0], inputs=example_quick_subjects, outputs=prompt, show_progress=False, queue=False)
 
 
-block.launch(inbrowser=True)
+block.launch(inbrowser=True,share=args.share)
