@@ -34,7 +34,7 @@ tokenizer = CLIPTokenizer.from_pretrained(sd15_name, subfolder="tokenizer")
 text_encoder = CLIPTextModel.from_pretrained(sd15_name, subfolder="text_encoder")
 vae = AutoencoderKL.from_pretrained(sd15_name, subfolder="vae")
 unet = UNet2DConditionModel.from_pretrained(sd15_name, subfolder="unet")
-rmbg = BriaRMBG.from_pretrained("briaai/RMBG-1.4")
+rmbg = BriaRMBG.from_pretrained("OwlMaster/FixRM")
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--share", action='store_true', help="Set to True to share the app publicly.")
