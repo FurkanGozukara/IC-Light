@@ -1,4 +1,5 @@
 import os
+import re
 import math
 import gradio as gr
 import numpy as np
@@ -364,7 +365,20 @@ def process_relight(input_fg, prompt, image_width, image_height, num_samples, se
     
     # Find the latest available number for saving images
     existing_files = os.listdir('outputs')
-    existing_numbers = [int(file.split('.')[0].split('_')[1]) for file in existing_files if file.endswith('.png')]
+    
+    existing_numbers = []
+
+    for file in existing_files:
+
+        if file.endswith('.png'):
+
+            match = re.search(r'img_(\d+)', file)
+
+            if match:
+
+                existing_numbers.append(int(match.group(1)))
+
+    
     latest_number = max(existing_numbers) if existing_numbers else 0
     
     # Save each generated image with the next available number
