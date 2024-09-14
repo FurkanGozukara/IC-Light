@@ -4,7 +4,6 @@ opencv-python
 safetensors
 pillow==10.2.0
 einops
-torch
 peft
 gradio
 protobuf==3.20
