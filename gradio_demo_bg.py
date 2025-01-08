@@ -17,7 +17,7 @@ from briarmbg import BriaRMBG
 from enum import Enum
 import argparse
 from torch.hub import download_url_to_file
-
+import re
 MAX_SEED = np.iinfo(np.int32).max
 def open_folder():
     open_folder_path = os.path.abspath("outputs")
@@ -346,22 +346,30 @@ def process_relight(input_fg, input_bg, prompt, image_width, image_height, num_s
         seed = random.randint(0, MAX_SEED)
     results, extra_images = process(input_fg, input_bg, prompt, image_width, image_height, num_samples, seed, steps, a_prompt, n_prompt, cfg, highres_scale, highres_denoise, bg_source)
     results = [(x * 255.0).clip(0, 255).astype(np.uint8) for x in results]
-        # Generate outputs folder if it doesn't exist
+
+    # Ensure the 'outputs' directory exists
     os.makedirs('outputs', exist_ok=True)
+
+    # Determine the next available image number
+    existing_files = [f for f in os.listdir('outputs') if f.startswith('img_') and f.endswith('.png')]
+    existing_numbers = []
+    for file in existing_files:
+        match = re.search(r'img_(\d+)', file)
+        if match:
+            existing_numbers.append(int(match.group(1)))
     
-    # Find the latest available number for saving images
-    existing_files = os.listdir('outputs')
-    existing_numbers = [int(file.split('.')[0].split('_')[1]) for file in existing_files if file.endswith('.png')]
     latest_number = max(existing_numbers) if existing_numbers else 0
-    
-    # Save each generated image with the next available number
+
+    # Prepare gallery results with filenames
+    gallery_results = []
     for i, result in enumerate(results):
         image_number = latest_number + i + 1
         filename = f'img_{image_number:05d}.png'
         filepath = os.path.join('outputs', filename)
         Image.fromarray(result).save(filepath)
-    
-    return results + extra_images, seed
+        gallery_results.append(filepath)  # Add filepath to gallery results
+
+    return gallery_results + [Image.fromarray(img) for img in extra_images], seed
 
 
 @torch.inference_mode()

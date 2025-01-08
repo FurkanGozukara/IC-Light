@@ -369,26 +369,27 @@ def process_relight(input_fg, prompt, image_width, image_height, num_samples, se
     existing_numbers = []
 
     for file in existing_files:
-
         if file.endswith('.png'):
-
             match = re.search(r'img_(\d+)', file)
-
             if match:
-
                 existing_numbers.append(int(match.group(1)))
-
     
     latest_number = max(existing_numbers) if existing_numbers else 0
     
+    # Prepare results for gallery
+    gallery_results = []
+
     # Save each generated image with the next available number
     for i, result in enumerate(results):
         image_number = latest_number + i + 1
         filename = f'img_{image_number:05d}.png'
         filepath = os.path.join('outputs', filename)
         Image.fromarray(result).save(filepath)
+        # Add saved file paths to gallery results
+        gallery_results.append(filepath)
     
-    return input_fg, results, seed  # Return the seed along with input_fg and results
+    return input_fg, gallery_results, seed  # Return the seed along with input_fg and gallery_results
+
 
 
 quick_prompts = [
