@@ -464,8 +464,8 @@ class BGSource(Enum):
 block = gr.Blocks().queue()
 with block:
     with gr.Row():
-        gr.Markdown(""" IC-Light (Relighting with Foreground and Background Condition) - V7 - This is improved version of publicly released Gradio demo
-        ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/103894969  """)
+        gr.Markdown(""" IC-Light (Relighting with Foreground and Background Condition) - V8 - This is improved version of publicly released Gradio demo
+        ### 1-Click Windows, RunPod, Massed Compute, Kaggle installers on : https://www.patreon.com/posts/119566071  """)
     with gr.Row():
         with gr.Column():
             with gr.Row():
